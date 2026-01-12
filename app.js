@@ -33,6 +33,7 @@ class PracticeApp {
             viewHome: document.getElementById('view-home'),
             viewWeek: document.getElementById('view-week'),
             viewItems: document.getElementById('view-items'),
+            viewBassBuzz: document.getElementById('view-bassbuzz'),
 
             // Header
             notesCount: document.getElementById('notes-count'),
@@ -82,6 +83,9 @@ class PracticeApp {
             itemsList: document.getElementById('items-list'),
             newItemBtn: document.getElementById('new-item-btn'),
 
+            // BassBuzz view
+            bassbuzzList: document.getElementById('bassbuzz-list'),
+
             // Item form modal
             itemFormModal: document.getElementById('item-form-modal'),
             closeItemForm: document.getElementById('close-item-form'),
@@ -92,6 +96,8 @@ class PracticeApp {
             itemKindFields: document.getElementById('item-kind-fields'),
             itemPinnedCheckbox: document.getElementById('item-pinned'),
             itemAllowBurstCheckbox: document.getElementById('item-allow-burst'),
+            itemCompletedField: document.getElementById('item-completed-field'),
+            itemCompletedCheckbox: document.getElementById('item-completed'),
             cancelItemForm: document.getElementById('cancel-item-form')
         };
 
@@ -184,6 +190,7 @@ class PracticeApp {
         this.elements.viewHome.classList.add('hidden');
         this.elements.viewWeek.classList.add('hidden');
         this.elements.viewItems.classList.add('hidden');
+        this.elements.viewBassBuzz.classList.add('hidden');
 
         if (view === 'home') {
             this.elements.viewHome.classList.remove('hidden');
@@ -194,6 +201,9 @@ class PracticeApp {
         } else if (view === 'items') {
             this.elements.viewItems.classList.remove('hidden');
             this.renderItems();
+        } else if (view === 'bassbuzz') {
+            this.elements.viewBassBuzz.classList.remove('hidden');
+            this.renderBassBuzz();
         }
     }
 
@@ -387,12 +397,20 @@ class PracticeApp {
             this.burstTimer = null;
         }
 
-        this.elements.startTimerBtn.classList.remove('hidden');
+        this.elements.startTimerBtn.classList.add('hidden');
         this.elements.stopTimerBtn.classList.add('hidden');
+        this.elements.doneBurstBtn.classList.remove('hidden');
     }
 
     async completeBurst() {
         if (!this.currentBurstItem) return;
+
+        // Calculate actual minutes practiced
+        let actualMinutes = 5; // Default to 5 minutes
+        if (this.burstStartTime) {
+            const elapsed = Math.floor((Date.now() - this.burstStartTime) / 1000);
+            actualMinutes = Math.max(1, Math.round(elapsed / 60)); // At least 1 minute
+        }
 
         // Calculate notes awarded
         const kindDef = KIND_DEFINITIONS[this.currentBurstItem.kind];
@@ -410,7 +428,7 @@ class PracticeApp {
             dateTime: new Date().toISOString(),
             itemId: this.currentBurstItem.id,
             mode: 'burst',
-            minutes: 5,
+            minutes: actualMinutes,
             values: runtimeValues,
             notesAwarded: notesAwarded
         };
@@ -429,7 +447,7 @@ class PracticeApp {
         this.closeBurstModal();
 
         // Show feedback
-        alert(`✓ Burst completato! +${notesAwarded} ♪`);
+        alert(`✓ Burst completato! ${actualMinutes} min registrati, +${notesAwarded} ♪`);
     }
 
     // ===== WEEK VIEW =====
@@ -740,7 +758,101 @@ class PracticeApp {
 
     // ===== BASSBUZZ =====
     openBassBuzz() {
-        alert('BassBuzz view - Coming soon!\nQuesta vista mostrerà i tuoi item BassBuzz con flow rapido per segnare "fatta".');
+        this.switchView('bassbuzz');
+    }
+
+    async renderBassBuzz() {
+        const items = await this.persistence.listItems();
+        const bassbuzzItems = items.filter(item => item.kind === 'bassbuzz');
+
+        if (bassbuzzItems.length === 0) {
+            this.elements.bassbuzzList.innerHTML = '<p style="color: var(--text-light); padding: 20px; text-align: center;">Nessuna lezione BassBuzz. Aggiungile dal tab Items!</p>';
+            return;
+        }
+
+        // Sort by module and lesson
+        bassbuzzItems.sort((a, b) => {
+            const moduleA = a.values?.module || 0;
+            const moduleB = b.values?.module || 0;
+            if (moduleA !== moduleB) return moduleA - moduleB;
+            return (a.values?.lesson || 0) - (b.values?.lesson || 0);
+        });
+
+        this.elements.bassbuzzList.innerHTML = bassbuzzItems.map(item => {
+            const module = item.values?.module || '?';
+            const lesson = item.values?.lesson || '?';
+            const link = item.values?.link || '';
+            const completed = item.completed || false;
+            const completedClass = completed ? 'completed' : '';
+            const completedTitleClass = completed ? 'completed' : '';
+
+            return `
+                <div class="bassbuzz-lesson-card ${completedClass}">
+                    <div class="bassbuzz-lesson-header">
+                        <div class="bassbuzz-lesson-title ${completedTitleClass}">M${module} L${lesson}</div>
+                        ${link ? `<div class="bassbuzz-lesson-link"><a href="${this._escapeHtml(link)}" target="_blank">🔗 Apri lezione</a></div>` : ''}
+                    </div>
+
+                    <div class="bassbuzz-lesson-controls">
+                        <select class="bassbuzz-workout-select" id="workout-${item.id}">
+                            <option value="lesson">Lesson</option>
+                            <option value="slow">Slow workout</option>
+                            <option value="middle">Middle workout</option>
+                            <option value="fast">Fast workout</option>
+                        </select>
+
+                        <button class="btn btn-primary" onclick="app.logBassBuzzWorkout('${item.id}')">Log</button>
+
+                        <div class="bassbuzz-lesson-completed">
+                            <input type="checkbox" id="completed-${item.id}" ${completed ? 'checked' : ''} onchange="app.toggleLessonCompleted('${item.id}')" />
+                            <label for="completed-${item.id}">Completata</label>
+                        </div>
+                    </div>
+                </div>
+            `;
+        }).join('');
+    }
+
+    async toggleLessonCompleted(itemId) {
+        const items = await this.persistence.listItems();
+        const item = items.find(i => i.id === itemId);
+
+        if (!item) return;
+
+        // Toggle completed status
+        item.completed = !item.completed;
+
+        await this.persistence.upsertItem(item);
+        await this.renderBassBuzz();
+    }
+
+    async logBassBuzzWorkout(itemId) {
+        const workoutSelect = document.getElementById(`workout-${itemId}`);
+        if (!workoutSelect) return;
+
+        const workoutType = workoutSelect.value;
+
+        // Create log
+        const log = {
+            id: this._generateId(),
+            dateTime: new Date().toISOString(),
+            itemId: itemId,
+            mode: 'bassbuzz-' + workoutType,
+            minutes: 0, // BassBuzz doesn't track time
+            values: { workoutType },
+            notesAwarded: 2 // BassBuzz awards 2 notes (double of burst)
+        };
+
+        await this.persistence.addLog(log);
+
+        // Update notes count
+        await this.updateNotesCount();
+
+        // Visual feedback
+        alert(`✓ ${workoutType.charAt(0).toUpperCase() + workoutType.slice(1)} registrato! +2 ♪`);
+
+        // Refresh view
+        await this.renderBassBuzz();
     }
 
     // ===== ITEMS MANAGEMENT =====
@@ -800,6 +912,11 @@ class PracticeApp {
         this.elements.itemPinnedCheckbox.checked = item.pinned;
         this.elements.itemAllowBurstCheckbox.checked = item.allowBurst;
 
+        // Load completed field for BassBuzz items
+        if (item.kind === 'bassbuzz') {
+            this.elements.itemCompletedCheckbox.checked = item.completed || false;
+        }
+
         // Render kind fields and populate with values
         this._renderKindFields(item.values);
     }
@@ -850,6 +967,13 @@ class PracticeApp {
                 </div>
             `;
         }).join('');
+
+        // Show/hide completed field for BassBuzz items
+        if (kind === 'bassbuzz') {
+            this.elements.itemCompletedField.classList.remove('hidden');
+        } else {
+            this.elements.itemCompletedField.classList.add('hidden');
+        }
     }
 
     async saveItem() {
@@ -890,6 +1014,11 @@ class PracticeApp {
             pinned,
             allowBurst
         };
+
+        // Add completed field for BassBuzz items
+        if (kind === 'bassbuzz') {
+            item.completed = this.elements.itemCompletedCheckbox.checked;
+        }
 
         await this.persistence.upsertItem(item);
 
@@ -982,10 +1111,10 @@ class PracticeApp {
                     allowBurst: true
                 },
                 {
-                    id: this._generateId(),
+                    id: 'note-trainer-fixed-id', // Fixed ID for bass-notes.html integration
                     title: 'Note Trainer',
                     kind: 'resource',
-                    values: { link: '', description: 'Bass notes learning tool' },
+                    values: { link: './bass-notes.html', description: 'Bass notes learning tool' },
                     pinned: true,
                     allowBurst: false
                 },

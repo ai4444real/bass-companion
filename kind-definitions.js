@@ -45,6 +45,12 @@ export const KIND_DEFINITIONS = {
                 required: true,
                 min: 1,
                 max: 50
+            },
+            link: {
+                type: 'url',
+                label: 'Link',
+                required: false,
+                default: ''
             }
         },
         defaultReward: 2

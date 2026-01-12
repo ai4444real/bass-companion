@@ -700,6 +700,93 @@ body {
     margin-top: 20px;
 }
 
+/* ===== BASSBUZZ VIEW ===== */
+.bassbuzz-header {
+    margin-bottom: 15px;
+}
+
+.bassbuzz-header h2 {
+    color: var(--primary);
+    font-size: 1.2em;
+}
+
+.bassbuzz-list {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+}
+
+.bassbuzz-lesson-card {
+    background: var(--bg-light);
+    border-radius: var(--border-radius);
+    padding: 15px;
+    border-left: 4px solid var(--primary);
+}
+
+.bassbuzz-lesson-card.completed {
+    border-left-color: var(--success);
+    opacity: 0.8;
+}
+
+.bassbuzz-lesson-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 10px;
+}
+
+.bassbuzz-lesson-title {
+    font-weight: bold;
+    color: var(--text-dark);
+    font-size: 1.1em;
+}
+
+.bassbuzz-lesson-title.completed::before {
+    content: "✓ ";
+    color: var(--success);
+}
+
+.bassbuzz-lesson-link {
+    font-size: 0.85em;
+}
+
+.bassbuzz-lesson-link a {
+    color: var(--primary);
+    text-decoration: none;
+}
+
+.bassbuzz-lesson-link a:hover {
+    text-decoration: underline;
+}
+
+.bassbuzz-lesson-controls {
+    display: flex;
+    gap: 10px;
+    align-items: center;
+    flex-wrap: wrap;
+}
+
+.bassbuzz-workout-select {
+    flex: 1;
+    min-width: 150px;
+    padding: 6px;
+    border: 1px solid #e5e7eb;
+    border-radius: var(--border-radius);
+    font-size: 0.85em;
+}
+
+.bassbuzz-lesson-controls .btn {
+    padding: 6px 12px;
+    font-size: 0.85em;
+}
+
+.bassbuzz-lesson-completed {
+    display: flex;
+    align-items: center;
+    gap: 5px;
+    font-size: 0.85em;
+}
+
 /* ===== ANIMATIONS ===== */
 @keyframes fadeIn {
     from {

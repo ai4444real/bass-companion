@@ -303,6 +303,17 @@
             box-shadow: 0 6px 12px rgba(107, 114, 128, 0.4);
         }
 
+        .btn-log-practice {
+            background: var(--success);
+            margin-top: 8px;
+            font-size: 0.75em;
+            padding: 6px 12px;
+        }
+
+        .btn-log-practice:hover {
+            box-shadow: 0 6px 12px rgba(16, 185, 129, 0.4);
+        }
+
         /* ===== FEEDBACK AREA ===== */
         .feedback {
             background: var(--bg-light);
@@ -511,6 +522,7 @@
             <div class="score-display">
                 Score: <span class="score" id="score">0</span>
             </div>
+            <button class="btn btn-log-practice" id="log-practice-btn" onclick="logPracticeSession()">✓ Log Practice</button>
         </header>
 
         <!-- Settings Panel -->
@@ -1614,6 +1626,62 @@
 
                 // Mostra bottone prossimo
                 this.elements.nextContainer.classList.remove('hidden');
+            }
+        }
+
+        // =====================================
+        // PRACTICE COMPANION INTEGRATION
+        // Log practice session to shared localStorage
+        // =====================================
+
+        // Fixed Note Trainer item ID (must match seed data in Practice Companion)
+        const NOTE_TRAINER_ITEM_ID = 'note-trainer-fixed-id';
+
+        function logPracticeSession() {
+            try {
+                // Generate UUID
+                function generateId() {
+                    return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, c => {
+                        const r = Math.random() * 16 | 0;
+                        const v = c === 'x' ? r : (r & 0x3 | 0x8);
+                        return v.toString(16);
+                    });
+                }
+
+                // Get existing logs
+                const logsJson = localStorage.getItem('practice_logs');
+                const logs = logsJson ? JSON.parse(logsJson) : [];
+
+                // Create new log entry
+                const log = {
+                    id: generateId(),
+                    dateTime: new Date().toISOString(),
+                    itemId: NOTE_TRAINER_ITEM_ID,
+                    mode: 'manual',
+                    minutes: 5,
+                    values: {},
+                    notesAwarded: 1
+                };
+
+                // Add to logs
+                logs.push(log);
+                localStorage.setItem('practice_logs', JSON.stringify(logs));
+
+                // Visual feedback
+                const btn = document.getElementById('log-practice-btn');
+                const originalText = btn.textContent;
+                btn.textContent = '✓ Logged!';
+                btn.style.background = '#10b981';
+
+                setTimeout(() => {
+                    btn.textContent = originalText;
+                    btn.style.background = '';
+                }, 2000);
+
+                console.log('✅ Practice session logged to Practice Companion');
+            } catch (error) {
+                console.error('Failed to log practice session:', error);
+                alert('Errore nel salvare la sessione di pratica');
             }
         }
 
