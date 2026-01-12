@@ -1,0 +1,406 @@
+ARTEFATTO PER CODEX — “Practice Companion – Basso”
+
+(Launcher + Burst 5’ + Reward ♪ + Log + Supabase persistence + Static hosting)
+
+0) Obiettivo
+
+Implementare una web app personale per lo studio del basso che:
+
+rende facile iniziare (launcher, non todo list)
+
+supporta pratica in burst da 5 minuti con timer (non dittatore)
+
+registra automaticamente ciò che fai (log)
+
+assegna note musicali (♪) come reward
+
+mostra una vista settimanale motivazionale
+
+persiste su cloud con Supabase + Auth + RLS, e resta sostituibile tramite Persistence Layer
+
+1) Principi non negoziabili
+
+Non è una todo list. È un launcher + logger.
+
+Risposta a “cosa faccio adesso?” in < 10 secondi.
+
+Il tracking è un effetto collaterale del flusso (soprattutto del burst).
+
+Unità base: burst 5 minuti.
+
+Reward: completare burst = 1 nota (♪) (configurabile per kind/item).
+
+Timer non dittatore: puoi interrompere, puoi loggare manualmente, ma con più frizione.
+
+2) Modello concettuale
+2.1 Entità unica: PracticeItem
+
+Tutto ciò che fai è un PracticeItem (riff, bassbuzz, esercizio, risorsa, teoria, warm-up…).
+
+Campi (logici):
+
+id: string (uuid)
+
+title: string
+
+kind: string (es. riff, bassbuzz, exercise, …)
+
+values: object (metadata statici dell’item, schema dipendente dal kind)
+
+pinned: boolean (default false)
+
+allowBurst: boolean (default true)
+
+Non creare entità separate “activities/riffs/lessons”: sono solo declinazioni di PracticeItem.
+
+2.2 KindDefinitions (mappa caricabile)
+
+Esiste una configurazione “mappa kind” che definisce, per ogni kind:
+
+label
+
+fields consentiti in values (tipo, required, default, min/max, ecc.)
+
+regola reward di default (opzionale)
+
+Questa mappa deve essere:
+
+caricabile (da file o storage)
+
+estendibile senza cambiare il modello
+
+Esempi:
+
+riff: targetBpm, notes/tab
+
+bassbuzz: module, lesson
+
+exercise: link, focus
+
+2.3 PracticeLog (ciò che è accaduto)
+
+Ogni sessione (burst o manuale) genera un PracticeLog.
+
+Campi (logici):
+
+id: string (uuid)
+
+dateTime: ISO string (timestamptz)
+
+itemId: string
+
+mode: 'burst' | 'manual'
+
+minutes: number
+
+values: object (runtime values della sessione, es. bpm effettivo, ecc.)
+
+notesAwarded: number
+
+notesText?: string (opzionale)
+
+Distinzione chiave
+
+PracticeItem.values = default/target/contesto (stabile)
+
+PracticeLog.values = valori della singola sessione (snapshot)
+
+2.4 Reward (♪) derivata dai log
+
+Non salvare un contatore note.
+Le note sono derivate dai log (somma notesAwarded), così modifiche/cancellazioni restano coerenti.
+
+3) Burst 5 minuti (timer non dittatore)
+
+Nome del burst: placeholder BurstName = "Jam5" (config).
+
+Flusso
+
+scelta PracticeItem (pinned + recent)
+
+Start (timer 5:00)
+
+Stop/Cancel disponibile (senza colpa)
+
+Fine timer → pulsante “Done” → crea log:
+
+mode='burst'
+
+minutes=5
+
+notesAwarded calcolato da reward (default 1, con eccezioni)
+
+values runtime opzionali (es. bpm effettivo per riff)
+
+Timer non dittatore
+
+interrompere non genera penalità
+
+log manuale sempre possibile, ma con più frizione (form più lungo)
+
+4) GUI guidelines (parte critica)
+4.1 Home: poche azioni, grandi, immediate
+
+Home deve essere mobile-first e contenere solo le azioni principali:
+
+▶ Start Burst
+
+default: ultimo item usato
+
+alternativa: se nessun last, apri selettore rapido
+
+🎯 Burst su item
+
+selettore rapido: pinned + recent + (opzionale) filtro per kind
+
+📚 BassBuzz
+
+vista filtrata kind=bassbuzz
+
+flow rapido per segnare “fatta” (manual o burst a seconda delle regole)
+
+📈 Week
+
+griglia 7 giorni con note ♪
+
+tap su giorno → lista log del giorno
+
+Niente backlog, niente liste infinite.
+
+4.2 Risorse: “Pinned first”
+
+pinned sempre visibili e in cima
+
+recent ovunque in selettori
+
+obiettivo: mai “cercare quel tab” (1–2 click per arrivarci)
+
+4.3 Logging: 2 click come regola aurea
+
+Burst: Start → Done (BPM/note opzionali ma rapide)
+Manual: consentito ma più form (frizione intenzionale)
+
+4.4 Week view motivazionale
+
+7 colonne (lun–dom)
+
+per ogni giorno visualizza ♪ fino a soglia, poi “+X”
+
+tap sul giorno → elenco log
+
+filtri rapidi: All / Riff / BassBuzz / Exercise
+
+4.5 BassBuzz speciale nel flusso, non nel modello
+
+BassBuzz è solo PracticeItem(kind=bassbuzz), ma ha:
+
+entry point dedicato
+
+form dedicato (module/lesson)
+
+reward/preset diversi
+
+filtri/metriche veloci
+
+5) Architettura obbligatoria: Persistence Layer separato
+5.1 Interfaccia astratta
+
+Tutta l’app deve parlare con Persistence (astratta).
+Nessuna chiamata Supabase diretta dalla UI/logica.
+
+Metodi minimi (concettuali):
+
+init()
+
+getKindDefinitions()
+
+saveKindDefinitions(map) (se su storage; se da file può essere read-only)
+
+listItems()
+
+upsertItem(item)
+
+deleteItem(id)
+
+listLogs({from,to,kind,itemId})
+
+addLog(log)
+
+deleteLog(id)
+
+(Export/import opzionali, ma utili)
+
+5.2 Implementazioni
+
+SupabasePersistence (prima istanza)
+
+future: LocalJsonPersistence, IndexedDbPersistence, ecc. senza cambiare UI/logica
+
+6) Persistenza concreta: Supabase + Auth “quasi invisibile” + RLS
+6.1 Auth: sessione persistente
+
+Usare supabase-js con:
+
+persistSession: true (default)
+
+sessione salvata in localStorage dal client (default) 
+Supabase
+
+autoRefreshToken: true (access token rinnovato automaticamente)
+
+Sessione in Supabase: access token (JWT) + refresh token; per default può durare “indefinitamente” (multi-device) 
+Supabase
+
+Conseguenza UX
+
+login una volta per browser/dispositivo
+
+poi “apro e via” finché non logout o cancelli dati sito
+
+6.2 Chiavi e sicurezza
+
+frontend usa anon/publishable key
+
+mai service role key nel browser
+
+la anon key è sicura solo se RLS è configurato correttamente 
+Supabase
++1
+
+6.3 Schema DB minimo (suggested)
+
+Table practice_items
+
+id uuid pk default gen_random_uuid()
+
+user_id uuid not null
+
+title text not null
+
+kind text not null
+
+values jsonb not null default '{}'::jsonb
+
+pinned boolean not null default false
+
+allow_burst boolean not null default true
+
+timestamps
+
+Table practice_logs
+
+id uuid pk default gen_random_uuid()
+
+user_id uuid not null
+
+item_id uuid not null references practice_items(id) on delete cascade
+
+date_time timestamptz not null
+
+mode text not null // burst/manual
+
+minutes int not null
+
+values jsonb not null default '{}'::jsonb
+
+notes_awarded int not null default 0
+
+notes_text text null
+
+kind_definitions opzionale:
+
+o file statico nel repo, o tabella kind_definitions(user_id, kinds jsonb)
+
+6.4 RLS: obbligatorio
+
+abilitare RLS su entrambe le tabelle 
+Supabase
+
+policy separate per SELECT/INSERT/UPDATE/DELETE (no FOR ALL) 
+Supabase
+
+vincolo: user_id = auth.uid() (notare: auth.uid() è null se non autenticato) 
+Supabase
+
+7) Static hosting provider-agnostic (per usare anche da telefono)
+7.1 Requisito
+
+L’app deve essere servita via HTTPS da un dominio/URL pubblico (static hosting).
+Motivi:
+
+compatibilità mobile
+
+origin HTTP stabile (no file://)
+
+auth redirect affidabile
+
+7.2 Requisiti tecnici minimi del provider
+
+hosting statico (upload/build di HTML/CSS/JS)
+
+possibilità di configurare env vars o un config file (alternativa: build-time injection)
+
+HTTPS
+
+7.3 Supabase Auth redirect
+
+Documentare nella guida di setup:
+
+aggiungere l’URL del sito tra i redirect/allowed origins in Supabase Auth (dettaglio implementativo nel README di progetto)
+
+8) CORS: regola semplice
+
+CRUD DB via supabase-js: previsto per browser e normalmente OK.
+
+Se si usano Edge Functions, implementare CORS preflight (OPTIONS + headers) perché Supabase lo richiede per invocazione da browser 
+Supabase
+
+(Idealmente: per MVP evitare Edge Functions, usare solo DB + RLS.)
+
+9) Seed iniziale (minimo)
+
+items pinned: note trainer (link), metronomo/backing track (link)
+
+“Fun Bits – Vol. 1” come PracticeItem(kind='riff')
+
+possibilità rapida di creare un item BassBuzz “M{module} L{lesson}”
+
+10) Out of scope (non fare ora)
+
+realtime, social, sync collaborativa
+
+import automatico BassBuzz
+
+analytics avanzate
+
+gamification complessa
+
+11) Deliverable
+
+Una web app funzionante che:
+
+usa Persistence Layer astratto
+
+implementa SupabasePersistence
+
+login persistente (quasi invisibile)
+
+CRUD item (minimo: create/edit/pin/allowBurst)
+
+burst 5’ con timer e log automatico
+
+log manuale
+
+week view con ♪ e drill-down
+
+filtri per kind
+
+Placeholder espliciti (ok lasciarli così)
+
+BurstName (“Jam5”)
+
+reward BassBuzz (1 o 2) come setting
+
+dove risiedono i KindDefinitions (file o tabella)
+
+styling finale

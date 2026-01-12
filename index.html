@@ -1,0 +1,212 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Bass Practice Companion</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <div class="app-container">
+        <!-- Header -->
+        <header class="app-header">
+            <h1>🎸 Practice Companion</h1>
+            <div class="notes-display">
+                <span class="notes-count" id="notes-count">0</span> ♪
+            </div>
+            <div class="header-links">
+                <a href="#" class="export-link" onclick="event.preventDefault(); app.exportData()">export</a>
+                <a href="#" class="reset-link" onclick="event.preventDefault(); if(confirm('Reset tutti i dati?')) { localStorage.clear(); location.reload(); }">reset</a>
+            </div>
+        </header>
+
+        <!-- Navigation -->
+        <nav class="nav-tabs" id="nav-tabs">
+            <button class="nav-tab active" data-view="home">Home</button>
+            <button class="nav-tab" data-view="week">Week</button>
+            <button class="nav-tab" data-view="items">Items</button>
+        </nav>
+
+        <!-- HOME VIEW -->
+        <div class="view" id="view-home">
+            <div class="home-actions">
+                <!-- Start Burst (last item) -->
+                <button class="action-btn primary-action" id="start-burst-btn">
+                    <span class="action-icon">▶</span>
+                    <span class="action-label">Start Burst</span>
+                    <span class="action-sublabel" id="last-item-name">--</span>
+                </button>
+
+                <!-- Burst on Item -->
+                <button class="action-btn" id="burst-on-item-btn">
+                    <span class="action-icon">🎯</span>
+                    <span class="action-label">Burst su item</span>
+                </button>
+
+                <!-- BassBuzz -->
+                <button class="action-btn" id="bassbuzz-btn">
+                    <span class="action-icon">📚</span>
+                    <span class="action-label">BassBuzz</span>
+                </button>
+            </div>
+
+            <!-- Pinned Items -->
+            <div class="pinned-section" id="pinned-section">
+                <h2 class="section-title">📌 Pinned</h2>
+                <div class="item-list" id="pinned-list">
+                    <!-- Pinned items will be rendered here -->
+                </div>
+            </div>
+
+            <!-- Recent Items -->
+            <div class="recent-section" id="recent-section">
+                <h2 class="section-title">🕐 Recent</h2>
+                <div class="item-list" id="recent-list">
+                    <!-- Recent items will be rendered here -->
+                </div>
+            </div>
+        </div>
+
+        <!-- WEEK VIEW -->
+        <div class="view hidden" id="view-week">
+            <div class="week-grid" id="week-grid">
+                <!-- Week days will be rendered here -->
+            </div>
+
+            <div class="day-detail hidden" id="day-detail">
+                <div class="day-detail-header">
+                    <button class="btn-back" id="back-to-week">← Week</button>
+                    <h3 id="day-detail-title">--</h3>
+                </div>
+                <div class="log-list" id="log-list">
+                    <!-- Logs for selected day will be rendered here -->
+                </div>
+            </div>
+        </div>
+
+        <!-- ITEMS VIEW -->
+        <div class="view hidden" id="view-items">
+            <div class="items-header">
+                <h2>Gestisci Items</h2>
+                <button class="btn btn-primary" id="new-item-btn">+ Nuovo Item</button>
+            </div>
+
+            <div class="items-list" id="items-list">
+                <!-- Items will be rendered here -->
+            </div>
+        </div>
+
+        <!-- BURST TIMER VIEW (overlay) -->
+        <div class="modal hidden" id="burst-modal">
+            <div class="modal-content">
+                <div class="burst-header">
+                    <h2 id="burst-item-name">--</h2>
+                    <button class="btn-close" id="close-burst">✕</button>
+                </div>
+
+                <div class="timer-display">
+                    <div class="timer-circle">
+                        <span class="timer-text" id="timer-text">5:00</span>
+                    </div>
+                </div>
+
+                <div class="burst-actions">
+                    <button class="btn btn-primary" id="start-timer-btn">Start</button>
+                    <button class="btn btn-secondary hidden" id="stop-timer-btn">Stop</button>
+                    <button class="btn btn-success hidden" id="done-burst-btn">Done</button>
+                </div>
+
+                <!-- Optional runtime values (e.g., BPM for riffs) -->
+                <div class="runtime-values hidden" id="runtime-values">
+                    <label for="runtime-bpm">BPM effettivo (opzionale)</label>
+                    <input type="number" id="runtime-bpm" min="40" max="300" />
+                </div>
+            </div>
+        </div>
+
+        <!-- ITEM SELECTOR MODAL -->
+        <div class="modal hidden" id="item-selector-modal">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h2>Seleziona Item</h2>
+                    <button class="btn-close" id="close-item-selector">✕</button>
+                </div>
+
+                <div class="item-selector-list" id="item-selector-list">
+                    <!-- Items will be rendered here -->
+                </div>
+            </div>
+        </div>
+
+        <!-- ITEM DETAIL MODAL -->
+        <div class="modal hidden" id="item-detail-modal">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h2 id="item-detail-title">--</h2>
+                    <button class="btn-close" id="close-item-detail">✕</button>
+                </div>
+
+                <div class="item-detail-kind" id="item-detail-kind">--</div>
+
+                <div class="item-detail-content" id="item-detail-content">
+                    <!-- Content will be rendered here -->
+                </div>
+
+                <div class="item-detail-actions">
+                    <button class="btn btn-primary" id="item-detail-burst-btn">▶ Start Burst</button>
+                </div>
+            </div>
+        </div>
+
+        <!-- ITEM EDIT/CREATE MODAL -->
+        <div class="modal hidden" id="item-form-modal">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h2 id="item-form-title">Nuovo Item</h2>
+                    <button class="btn-close" id="close-item-form">✕</button>
+                </div>
+
+                <form id="item-form">
+                    <div class="form-field">
+                        <label for="item-title">Titolo *</label>
+                        <input type="text" id="item-title" required />
+                    </div>
+
+                    <div class="form-field">
+                        <label for="item-kind">Tipo *</label>
+                        <select id="item-kind" required>
+                            <option value="">-- Seleziona --</option>
+                        </select>
+                    </div>
+
+                    <div id="item-kind-fields">
+                        <!-- Dynamic fields based on kind -->
+                    </div>
+
+                    <div class="form-field">
+                        <label>
+                            <input type="checkbox" id="item-pinned" />
+                            Pinned
+                        </label>
+                    </div>
+
+                    <div class="form-field">
+                        <label>
+                            <input type="checkbox" id="item-allow-burst" checked />
+                            Allow Burst
+                        </label>
+                    </div>
+
+                    <div class="form-actions">
+                        <button type="submit" class="btn btn-primary">Salva</button>
+                        <button type="button" class="btn btn-secondary" id="cancel-item-form">Annulla</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <!-- Scripts -->
+    <script type="module" src="app.js"></script>
+</body>
+</html>
